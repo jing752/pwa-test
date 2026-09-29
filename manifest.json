@@ -1,20 +1,24 @@
 {
-  "name": "Mon Jeu PWA",
-  "short_name": "PWA Jeu",
-  "start_url": "./index.html",
+  "name": "Into Space!",
+  "short_name": "Space",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
+  "description": "Mini jeu spatial compatible PWA",
   "icons": [
     {
-      "src": "img/starship.png",
+      "src": "starship.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "img/starship.png",
+      "src": "starship.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

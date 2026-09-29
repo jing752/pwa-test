@@ -1,45 +1,53 @@
 const CACHE_NAME = 'pwa-cache-v1';
 const urlsToCache = [
+  './',
   './index.html',
-  './css/', // Ajustez selon vos chemins exacts
-  './js/',
-  './img/starship.png',
-  './img/background.jpg',
-  './img/asteroid.png',
-  './img/explosion.gif'
+  './manifest.json',
+  './starship.png',
+  './asteroid.png',
+  './background.jpg',
+  './explosion.gif'
 ];
 
-// Installation du Service Worker
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
+  self.skipWaiting();
 });
 
-// Activation et nettoyage des anciens caches
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
+    caches.keys().then(cacheNames =>
+      Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
+          return Promise.resolve();
         })
-      );
-    })
+      )
+    )
   );
+  self.clients.claim();
 });
 
-// Interception des requêtes réseau
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        return response || fetch(event.request);
-      })
+    caches.match(event.request).then(cachedResponse => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      return fetch(event.request)
+        .then(networkResponse => {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+          return networkResponse;
+        })
+        .catch(() => caches.match('./index.html'));
+    })
   );
 });
