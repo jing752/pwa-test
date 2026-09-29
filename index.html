@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Into Space!</title>
+    <style>
+        body {
+            margin: 0;
+            position: relative;
+            overflow: hidden;
+            background: #000 url('background.jpg') no-repeat center center fixed;
+            background-size: cover;
+            height: 100vh;
+        }
+        #vaisseau {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+        }
+        #vaisseau img {
+            width: 100%;
+            height: 100%;
+        }
+        .asteroide {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            left: 100px;
+            top: 100px;
+        }
+        .asteroide img {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="vaisseau">
+        <img id="imgVaisseau" src="starship.png" alt="Vaisseau">
+    </div>
+
+    <div class="asteroide" id="asteroide1">
+        <img src="asteroid.png" alt="Astéroïde">
+    </div>
+
+    <div class="asteroide" id="asteroide2">
+        <img src="asteroid.png" alt="Astéroïde">
+    </div>
+
+    <div class="asteroide" id="asteroide3">
+        <img src="asteroid.png" alt="Astéroïde">
+    </div>
+
+    <div id="debugPanel" style="position:fixed;right:10px;top:10px;background:rgba(0,0,0,0.6);color:#fff;padding:8px;border-radius:6px;font-family:sans-serif;z-index:9999;">
+        <div style="font-size:14px;margin-bottom:6px">Capteurs</div>
+        <div>beta: <span id="betaVal">0</span></div>
+        <div>gamma: <span id="gammaVal">0</span></div>
+        <div style="margin-top:6px;display:flex;gap:6px;">
+            <button id="enableSensors">Activer capteurs</button>
+            <button id="calibrate">Calibrer</button>
+        </div>
+    </div>
+
+    <script src="cordova.js"></script>
+    <script>
+        const vaisseau = document.getElementById("vaisseau");
+
+        // Position initiale au centre de l'écran
+        let posX = (window.innerWidth / 2) - 30;
+        let posY = (window.innerHeight / 2) - 30;
+
+        vaisseau.style.left = posX + "px";
+        vaisseau.style.top = posY + "px";
+
+        let betaVal = 0;  // Inclinaison avant/arrière
+        let gammaVal = 0; // Inclinaison gauche/droite
+
+        let isExploding = false;
+
+        // 1. Récupération des valeurs du capteur d'orientation (gestion permission iOS + lissage)
+        const supportsDeviceOrientation = 'DeviceOrientationEvent' in window;
+        console.log('DeviceOrientation supported:', supportsDeviceOrientation);
+
+        let sensorsEnabled = false;
+        let baselineBeta = 0;
+        let baselineGamma = 0;
+        let smoothBeta = 0;
+        let smoothGamma = 0;
+        const smoothing = 0.15; // 0..1, plus petit = plus lisse
+        const sensitivity = 0.12; // ajuste la vitesse de translation
+
+        const betaSpan = document.getElementById('betaVal');
+        const gammaSpan = document.getElementById('gammaVal');
+
+        function lerp(a, b, t) { return a + (b - a) * t; }
+
+        function handleOrientation(event) {
+            if (!sensorsEnabled) return;
+            const b = event.beta ?? 0;
+            const g = event.gamma ?? 0;
+            // appliquer la calibration
+            const rb = b - baselineBeta;
+            const rg = g - baselineGamma;
+            // lissage
+            smoothBeta = lerp(smoothBeta, rb, smoothing);
+            smoothGamma = lerp(smoothGamma, rg, smoothing);
+            betaVal = smoothBeta;
+            gammaVal = smoothGamma;
+            betaSpan.textContent = betaVal.toFixed(1);
+            gammaSpan.textContent = gammaVal.toFixed(1);
+        }
+
+        async function enableSensors() {
+            if (!supportsDeviceOrientation) {
+                alert('DeviceOrientation non supporté sur cet appareil');
+                return;
+            }
+            // iOS 13+ requires permission
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                try {
+                    const res = await DeviceOrientationEvent.requestPermission();
+                    if (res !== 'granted') {
+                        alert('Permission capteurs refusée');
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('Permission request failed', e);
+                    alert('Impossible de demander la permission aux capteurs');
+                    return;
+                }
+            }
+            // ajouter l'écouteur
+            window.removeEventListener('deviceorientation', handleOrientation);
+            window.addEventListener('deviceorientation', handleOrientation);
+            sensorsEnabled = true;
+        }
+
+        document.getElementById('enableSensors').addEventListener('click', () => {
+            enableSensors();
+        });
+
+        document.getElementById('calibrate').addEventListener('click', () => {
+            // prendre la position actuelle comme référence
+            baselineBeta = (smoothBeta || betaVal) ;
+            baselineGamma = (smoothGamma || gammaVal);
+            console.log('Calibrated:', baselineBeta.toFixed(1), baselineGamma.toFixed(1));
+        });
+
+        // --- Gestion des météorites (plusieurs objets, génération dynamique) ---
+        const numAsteroids = 12; // nombre total désiré (modifiable)
+        let asteroidEls = Array.from(document.querySelectorAll('.asteroide'));
+        // créer des éléments supplémentaires si nécessaire
+        while (asteroidEls.length < numAsteroids) {
+            const el = document.createElement('div');
+            el.className = 'asteroide';
+            el.innerHTML = '<img src="asteroid.png" alt="Astéroïde">';
+            document.body.appendChild(el);
+            asteroidEls.push(el);
+        }
+
+        const asteroids = asteroidEls.map((el, i) => {
+            const w = 50;
+            const h = 50;
+            const x = Math.random() * (window.innerWidth - w);
+            const y = - (50 + Math.random() * 800) - i * 60;
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            const vx = (Math.random() - 0.5) * 1.2;
+            const vy = 1 + Math.random() * 2.5;
+            return { el, x, y, vx, vy, w, h };
+        });
+
+        function resetAsteroid(ast) {
+            ast.x = Math.random() * (window.innerWidth - ast.w);
+            ast.y = - (50 + Math.random() * 800);
+            ast.vx = (Math.random() - 0.5) * 1.2;
+            ast.vy = 1 + Math.random() * 2.5;
+            ast.el.style.left = ast.x + 'px';
+            ast.el.style.top = ast.y + 'px';
+        }
+
+        // 2. Fonction de détection de collision
+        function checkCollision(el1, el2) {
+            const rect1 = el1.getBoundingClientRect();
+            const rect2 = el2.getBoundingClientRect();
+
+            return !(
+                rect1.top > rect2.bottom ||
+                rect1.bottom < rect2.top ||
+                rect1.right < rect2.left ||
+                rect1.left > rect2.right
+            );
+        }
+
+        // 3. Boucle de jeu fluide avec setInterval
+        const vitesse = 0.2; // Facteur pour l'effet d'inclinaison
+        const intervalId = setInterval(() => {
+            if (isExploding) return;
+
+            // Si les capteurs sont activés, on utilise beta/gamma transformés
+            posX += gammaVal * vitesse * sensitivity;
+            posY += betaVal * vitesse * sensitivity;
+
+            // Empêcher le vaisseau de sortir de l'écran
+            const maxX = window.innerWidth - 60;
+            const maxY = window.innerHeight - 60;
+            posX = Math.max(0, Math.min(posX, maxX));
+            posY = Math.max(0, Math.min(posY, maxY));
+
+            // Appliquer les nouvelles positions top et left
+            vaisseau.style.left = posX + "px";
+            vaisseau.style.top = posY + "px";
+
+            // Mise à jour et réapparition des météorites
+            asteroids.forEach(ast => {
+                ast.x += ast.vx;
+                ast.y += ast.vy;
+                ast.el.style.left = ast.x + 'px';
+                ast.el.style.top = ast.y + 'px';
+
+                // si sortie d'écran, remettre au début
+                if (ast.y > window.innerHeight + ast.h || ast.x < -ast.w || ast.x > window.innerWidth + ast.w) {
+                    resetAsteroid(ast);
+                }
+
+                // collision
+                if (checkCollision(vaisseau, ast.el)) {
+                    declencherExplosion();
+                }
+            });
+        }, 20);
+
+        // 4. Contrôles clavier pour debug (flèches) et déclenchement manuel (espace)
+        window.addEventListener('keydown', (e) => {
+            if (isExploding) return;
+            const step = 10;
+            switch (e.key) {
+                case 'ArrowLeft': posX = Math.max(0, posX - step); break;
+                case 'ArrowRight': posX = Math.min(window.innerWidth - 60, posX + step); break;
+                case 'ArrowUp': posY = Math.max(0, posY - step); break;
+                case 'ArrowDown': posY = Math.min(window.innerHeight - 60, posY + step); break;
+                case ' ': declencherExplosion(); return;
+                default: return;
+            }
+            vaisseau.style.left = posX + 'px';
+            vaisseau.style.top = posY + 'px';
+            e.preventDefault();
+        });
+
+        // 5. Drag du vaisseau pour tests rapides
+        let dragging = false;
+        vaisseau.addEventListener('pointerdown', (ev) => {
+            dragging = true;
+            vaisseau.setPointerCapture(ev.pointerId);
+        });
+        vaisseau.addEventListener('pointermove', (ev) => {
+            if (!dragging) return;
+            posX = Math.max(0, Math.min(window.innerWidth - 60, ev.clientX - 30));
+            posY = Math.max(0, Math.min(window.innerHeight - 60, ev.clientY - 30));
+            vaisseau.style.left = posX + 'px';
+            vaisseau.style.top = posY + 'px';
+        });
+        vaisseau.addEventListener('pointerup', (ev) => {
+            dragging = false;
+            try { vaisseau.releasePointerCapture(ev.pointerId); } catch (e) {}
+        });
+
+        // 6. Gestion de l'explosion et rechargement de la page
+        function declencherExplosion() {
+            if (isExploding) return;
+            isExploding = true;
+            clearInterval(intervalId);
+
+            const img = document.getElementById("imgVaisseau");
+            if (img) img.src = "explosion.gif";
+
+            setTimeout(() => {
+                location.reload();
+            }, 1200);
+        }
+    </script>
+</body>
+</html>
