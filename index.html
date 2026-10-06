@@ -8,6 +8,9 @@
     <title>Into Space!</title>
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="starship.png" type="image/png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         body {
             margin: 0;
@@ -286,7 +289,7 @@
         }
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./js/sw.js', { scope: './' })
+      navigator.serviceWorker.register('./sw.js', { scope: './' })
         .then(reg => console.log('Service Worker enregistré !', reg))
         .catch(err => console.error('Erreur Service Worker :', err));
     });
